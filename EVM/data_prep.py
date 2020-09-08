@@ -1,10 +1,7 @@
-import logging
 import time
 import math
 import h5py
 import torch
-
-logger = logging.getLogger("data-prep")
 
 def read_features(args, cls_to_process):
     try:
@@ -21,7 +18,6 @@ def read_features(args, cls_to_process):
             h.close()
 
 def prep_all_features(gpu, args):
-    startTime = time.time()
     # total number of classes
     l = len(args.all_classes)
     # batches of negative classes
@@ -37,8 +33,8 @@ def prep_all_features(gpu, args):
         features.append(feature)
         start += feature.shape[0]
     start_indxs.append(start)
-    features = torch.cat(features).to(f"cuda:{gpu}")
-    logger.info(
-        f"***************** Time taken to load/prepare data *****************{time.time() - startTime}"
-    )
-    return features, start_indxs
+    features = torch.cat(features)
+    features_norm = features.norm(p=2, dim=1, keepdim=True)
+    features_t = features.t().to(f"cuda:{gpu}")
+    features_norm_t = features_norm.t().to(f"cuda:{gpu}")
+    return features_t, features_norm_t, start_indxs

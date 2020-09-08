@@ -24,11 +24,10 @@ def command_line_options():
     parser.add_argument("--distance_multiplier", help="distance multiplier", type=float, default=0.55)
     parser.add_argument("--output_path", help="output directory path", default="", required=True)
     parser.add_argument("-g", "--gpus", nargs="+", default=[1], type=int, help="number of gpus per node")
-    parser.add_argument("-w", "--world-size", default=1, type=int)
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument("--debug", help="debugging flag", action="store_true", default=False)
-    parser.add_argument('--dist-url', default='env://', type=str, #tcp://128.198.147.47:7979
-                        help='url used to set up distributed training')
+    parser.add_argument('--dist-url', default='localhost', type=str,
+                        help='Masters IP address')
     args = parser.parse_args()
     args.world_size = sum(args.gpus)
     return args
@@ -49,32 +48,18 @@ def main(args):
     if args.debug:
         args.all_classes = args.all_classes[: args.world_size * 3]
 
-    to_save_queue = mp.Queue()
     if args.world_size == 1:
-        EVM.trainer(0, args, to_save_queue)
+        EVM.trainer(0, args)
     else:
         processes = []
         for rank in range(args.gpus[args.local_rank]):
-            p = mp.Process(target=EVM.trainer, args=(rank, args, to_save_queue))
+            p = mp.Process(target=EVM.trainer, args=(rank, args))
             p.start()
             processes.append(p)
-
-    EVM.model_saver.initializer(args)
-    for _ in range(len(args.all_classes)):
-        try:
-            to_save = to_save_queue.get()
-        except:
-            to_save = None
-        if to_save is not None:
-            current_cls_being_processed, extreme_vectors, extreme_vectors_indexes, covered_vectors = to_save
-            EVM.model_saver.save_cls_evs(current_cls_being_processed, extreme_vectors, extreme_vectors_indexes, covered_vectors)
-
-    EVM.model_saver.close()
 
     if args.world_size > 1:
         for p in processes:
             p.join()
-
 
 if __name__ == "__main__":
     args = command_line_options()
