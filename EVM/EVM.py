@@ -122,11 +122,13 @@ def each_process_trainer(gpu, args, pos_classes_to_process, all_class_features_m
                                       dim=1,
                                       largest=False,
                                       sorted=True).values
+        del distance_batch
         del negative_distances
         del neg_features
         del positive_cls_feature
         weibull_model = fit_weibull(sortedTensor,
                                     args.distance_multiplier, args.tailsize, gpu)
+        del sortedTensor
         extreme_vectors_models, extreme_vectors_indexes, covered_vectors = set_cover(weibull_model,
                                                                                      positive_distances.to(f"cuda:{gpu}"),
                                                                                      args.cover_threshold)
