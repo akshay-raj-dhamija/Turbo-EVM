@@ -20,7 +20,7 @@ def read_features(args, feature_file_names=None, cls_to_process=None):
             temp = []
             for hf, layer_name in file_layer_comb:
                 temp.append(torch.squeeze(torch.tensor(hf[cls][layer_name])))
-            features = torch.cat(temp)
+            features = torch.cat(temp,dim=1)
             yield cls,features
     finally:
         for h in h5_objs:
