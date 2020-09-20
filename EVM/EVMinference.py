@@ -8,6 +8,7 @@ import EVM
 from EVM import data_prep
 from EVM import pairwisedistances
 from EVM import test_saver
+from EVM import model_saver
 from DistributionModels import weibull
 
 def each_process_inferencer(gpu, test_file_name, args, combination_dict, classes_to_process, all_class_evs):
@@ -24,7 +25,7 @@ def each_process_inferencer(gpu, test_file_name, args, combination_dict, classes
 
     if global_rank==saver_process:
         print(f"Started Saver Process {global_rank}/{args.world_size+1}")
-        test_saver.initializer(args, test_file_name = test_file_name, combination_dict=combination_dict)
+        test_saver.initializer(args, test_file_name = test_file_name[-1], combination_dict=combination_dict)
         while True:
             if test_saver.cls_counter()>=args.total_no_of_classes:
                 break
@@ -36,7 +37,7 @@ def each_process_inferencer(gpu, test_file_name, args, combination_dict, classes
     torch.cuda.set_device(gpu)
 
     test_features_generator = data_prep.read_features(args,
-                                                      feature_file_names=(test_file_name,),
+                                                      feature_file_names=test_file_name,
                                                       cls_to_process=classes_to_process)
     for test_cls_name, test_cls_feature in test_features_generator:
         test_cls_feature = test_cls_feature.to(f"cuda:{gpu}")
@@ -76,12 +77,14 @@ def each_process_inferencer(gpu, test_file_name, args, combination_dict, classes
 
 def main(args):
     all_evm_param_combinations, _ = EVM.get_all_evm_combinations(args)
+    assert len(args.test_feature_files)%len(args.feature_files)==0
     for evm_param_combination in all_evm_param_combinations:
         ev_batches = model_saver.model_loader(args, evm_param_combination)
         # Process each test file
-        for test_feature_file in args.test_feature_files:
+        for i in range(0,len(args.test_feature_files),len(args.feature_files)):
+            test_feature_file = args.test_feature_files[i:i+len(args.feature_files)]
             # Split Classes according to available gpus
-            with h5py.File(test_feature_file, "r") as hf:
+            with h5py.File(test_feature_file[0], "r") as hf:
                 class_names = sorted(list(hf.keys()))
             # TODO: FIX Feature file and remove this
             if '360' in test_feature_file:
