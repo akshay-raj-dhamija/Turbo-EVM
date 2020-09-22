@@ -24,8 +24,8 @@ def set_cover(mr_model, positive_distances, cover_threshold):
     # threshold by cover threshold
     e = torch.eye(probabilities.shape[0]).type(torch.BoolTensor)
     thresholded = probabilities >= cover_threshold
+    thresholded[e] = True
     del probabilities
-    assert torch.all(thresholded[e]) == True, f"All samples are not covering themselves after cover threshold {cover_threshold}"
     # try:
     #     assert torch.all(thresholded[e])==True, "All samples are not covering themselves after cover threshold"
     # except:
