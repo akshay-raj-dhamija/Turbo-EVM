@@ -11,7 +11,7 @@ from DistributionModels import weibull
 
 def fit_weibull(distances, distance_multiplier, tailsize, gpu):
     if tailsize>distances.shape[1]:
-        print("WARNING: tailsize is more than the number of sample, setting it to all samples")
+        print(f"WARNING: tailsize {tailsize} is more than the number of samples {distances.shape}, setting it to all samples {distances.shape[1]}")
         tailsize = distances.shape[1]
     mr = weibull.weibull()
     mr.FitLow(distances.double() * distance_multiplier, tailsize, isSorted=False, gpu=gpu)
@@ -155,7 +155,7 @@ def each_process_trainer(gpu, args, pos_classes_to_process, all_class_features_m
         for n in negative_distances[1:]:
             distance_batch = torch.cat([sortedTensor,n.to(f"cuda:{gpu}")], dim=1)
             sortedTensor = torch.topk(distance_batch,
-                                      max_tailsize,
+                                      min(max_tailsize,distance_batch.shape[1]),
                                       dim=1,
                                       largest=False,
                                       sorted=True).values
