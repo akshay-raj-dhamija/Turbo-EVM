@@ -27,8 +27,15 @@ class weibull:
              --> 10000 distances for each weibull on 1 dim
         """
         self.sign = -1
-        self.splits = 1
-        return self._weibullFitting(data, tailSize, isSorted, gpu)
+        max_tailsize_in_1_chunk = 100000
+        if tailSize <= max_tailsize_in_1_chunk:
+            self.splits = 1
+            to_return = self._weibullFitting(data, tailSize, isSorted, gpu)
+        else:
+            self.splits = tailSize//max_tailsize_in_1_chunk + 1
+            to_return = self._weibullFilltingInBatches(data, tailSize, isSorted, gpu)
+        return to_return
+
 
     def FitHigh(self, data, tailSize, isSorted=False):
         self.sign = 1
@@ -105,7 +112,7 @@ class weibull:
         resultTensor[startIndex:endIndex,:] = result_batch.cpu()
         reultTensor_smallScoreTensor[startIndex:endIndex,:] = result_batch_smallScoreTensor.cpu()
     
-        self.wbFits = resultTensor   
+        self.wbFits = resultTensor
         self.smallScoreTensor = reultTensor_smallScoreTensor
 
 
