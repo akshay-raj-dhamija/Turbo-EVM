@@ -22,7 +22,7 @@ def initializer(args, combination_dict, display_progress = False):
                     f"_ct_{combination_dict['cover_threshold']}" \
                     f"_dm_{combination_dict['distance_multiplier']}"
     output_file_path = f"{args.output_path}/{evm_file_name}.hdf5"
-    print("SAVING FILE TO", output_file_path)
+    print(f"SAVING FILE TO {output_file_path}\n")
     hf = h5py.File(output_file_path, "w")
 
     if display_progress:
@@ -90,10 +90,7 @@ def convert_to_batches(chunks, classes_per_batch):
 
     def initialize_per_batch_dict(current_batch=None):
         if current_batch is not None:
-            current_batch['features_t'] = torch.cat(current_batch['features_t']).double()
-            current_batch['norm_t'] = current_batch['features_t'].norm(p=2, dim=1, keepdim=True)
-            current_batch['features_t'] = current_batch['features_t'].t()
-            current_batch['norm_t'] = current_batch['norm_t'].t()
+            current_batch['features'] = torch.cat(current_batch['features']).double()
             current_batch['weibulls']['Scale'] = torch.cat(current_batch['weibulls']['Scale'])
             current_batch['weibulls']['Shape'] = torch.cat(current_batch['weibulls']['Shape'])
             current_batch['weibulls']['smallScoreTensor'] = torch.cat(current_batch['weibulls']['smallScoreTensor'])
@@ -104,7 +101,7 @@ def convert_to_batches(chunks, classes_per_batch):
         else:
             old_batch = None
         new_batch = {}
-        new_batch['features_t'] = []
+        new_batch['features'] = []
         new_batch['start_indx'] = {}
         new_batch['weibulls'] = {}
         new_batch['weibulls']['Scale'] = []
@@ -122,10 +119,10 @@ def convert_to_batches(chunks, classes_per_batch):
         for cls, feature, weibull in single_chunk:
             feature = torch.tensor(feature)
             current_batch['start_indx'][cls] = (start, start + feature.shape[0])
-            current_batch['features_t'].append(feature)
+            current_batch['features'].append(feature)
             [current_batch['weibulls'][_].append(torch.tensor(weibull[_])) for _ in weibull]
             start += feature.shape[0]
-            if len(current_batch['features_t'])==classes_per_batch:
+            if len(current_batch['features'])==classes_per_batch:
                 old_batch, start, current_batch = initialize_per_batch_dict(current_batch)
                 batches.append(old_batch)
     if start!=0:

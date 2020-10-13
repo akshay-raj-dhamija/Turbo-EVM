@@ -27,26 +27,22 @@ def read_features(args, feature_file_names=None, cls_to_process=None):
             h.close()
 
 
-def add_chunk(all_classes,per_chunk_features,starting_indxs_dict):
-    per_chunk_features = torch.cat(per_chunk_features)
-    per_chunk_features_norm = per_chunk_features.norm(p=2, dim=1, keepdim=True)
-    all_classes['features_t'].append(per_chunk_features.t())
-    all_classes['features_t_norm'].append(per_chunk_features_norm.t())
+def add_chunk(all_classes, per_chunk_features, starting_indxs_dict):
+    all_classes['features'].append(torch.cat(per_chunk_features))
     all_classes['start_indxs'].append(starting_indxs_dict)
-    return all_classes, 0,{},[]
+    return all_classes, 0, {}, []
 
 
 def prep_all_features(args):
     features_gen = read_features(args, feature_file_names = args.feature_files)
     all_classes={}
-    all_classes['features_t']=[]
-    all_classes['features_t_norm']=[]
+    all_classes['features']=[]
     all_classes['start_indxs']=[]
     start = 0
     per_chunk_features = []
     starting_indxs_dict = {}
     class_names = []
-    pbar = tqdm(total=1000)
+    pbar = tqdm(total=args.total_no_of_classes)
     for cls,feature in features_gen:
         pbar.update(1)
         per_chunk_features.append(feature)
@@ -54,7 +50,7 @@ def prep_all_features(args):
         start += feature.shape[0]
         class_names.append(cls)
         if len(per_chunk_features)%args.cls_per_chunk == 0:
-            all_classes, start, starting_indxs_dict, per_chunk_features_t = add_chunk(all_classes,
+            all_classes, start, starting_indxs_dict, per_chunk_features = add_chunk(all_classes,
                                                                                       per_chunk_features,
                                                                                       starting_indxs_dict)
     # Add any additional values missed
@@ -71,8 +67,7 @@ def prep_single_chunk(args, cls_to_process):
                                  feature_file_names = args.feature_files,
                                  cls_to_process = cls_to_process)
     all_classes={}
-    all_classes['features_t']=[]
-    all_classes['features_t_norm']=[]
+    all_classes['features']=[]
     all_classes['start_indxs']=[]
     start = 0
     per_chunk_features = []
@@ -99,14 +94,12 @@ def prep_all_features_parallel(args):
     p = mp.Pool(len(all_class_batches))
     all_data = p.map(partial(prep_single_chunk, args), all_class_batches)
     all_classes={}
-    all_classes['features_t']=[]
-    all_classes['features_t_norm']=[]
+    all_classes['features']=[]
     all_classes['start_indxs']=[]
     all_class_names = []
     for classes_meta, class_names in all_data:
         all_class_names.extend(class_names)
-        all_classes['features_t'].extend(classes_meta['features_t'])
-        all_classes['features_t_norm'].extend(classes_meta['features_t_norm'])
+        all_classes['features'].extend(classes_meta['features'])
         all_classes['start_indxs'].extend(classes_meta['start_indxs'])
     print(f"Finished feature reading in {time.time() - start_time} seconds")
     return all_classes, all_class_names

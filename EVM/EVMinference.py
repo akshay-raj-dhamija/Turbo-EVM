@@ -43,12 +43,9 @@ def each_process_inferencer(gpu, test_file_name, args, combination_dict, classes
         test_cls_feature = test_cls_feature.to(f"cuda:{gpu}")
         results = {}
         for batch_no, ev_data in enumerate(all_class_evs):
-            norm = ev_data['norm_t'].to(f"cuda:{gpu}")
             # distances is a tensor of size no_of_samples_in_test_class X no_of_extreme_vector
-            distances = pairwisedistances.cosine_distance(test_cls_feature,
-                                                          ev_data['features_t'].to(f"cuda:{gpu}"),
-                                                          w2_t=norm)
-            del norm
+            distances = pairwisedistances.__dict__[args.distance_metric](test_cls_feature,
+                                                                         ev_data['features'].to(f"cuda:{gpu}"))
             mr = weibull.weibull(ev_data['weibulls'])
             probs = mr.wscore(distances)
             del distances
