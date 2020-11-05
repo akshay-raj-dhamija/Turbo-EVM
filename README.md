@@ -21,9 +21,7 @@ If more than one parameter is provided a list of possible parameters, EVM's are 
 
 ```python -m torch.distributed.launch main.py --feature_files /scratch/adhamija/4mohsen/Features/feature_train_efficient_b3_center_loss_fp16.hdf5 --layer_names features --output_path /scratch/adhamija/4mohsen/Features/EVM_Models/DM/ --gpus 10 --tailsizes 33998 --cover_thresholds 0.8 --distance_multipliers 0.4 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 1.0 --distance_metric euclidean --cls_per_chunk 25```
 
-Sample command to test an EVM Model.
-
-```python -m torch.distributed.launch main.py --feature_files /scratch/adhamija/4mohsen/Features/feature_train_efficient_b3_center_loss_fp16.hdf5 --layer_names features --output_path /scratch/adhamija/4mohsen/Features/EVM_Models/DM/ --gpus 10 --tailsizes 33998 --cover_thresholds 0.8 --distance_multipliers 0.4 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 1.0 --distance_metric euclidean --cls_per_chunk 25 --run_tests --test_feature_files /scratch/adhamija/4mohsen/Features/feature_val_efficient_b3_center_loss_fp16.hdf5```
+In case of gpu OOM error please try and lower the `cls_per_chunk` parameter.
 
 
 ### Running Testing
@@ -31,4 +29,4 @@ Sample command to test an EVM Model.
 The commands for running the testing are very similar to the training commands above but also need two additional parameters `--run_tests` and `--test_feature_files`
 Please note the `--output_path` should be the same where the models were saved, this will also be the destination of all the resulting scoring files.
 
-```python -m torch.distributed.launch main.py --feature_files /scratch/adhamija/4mohsen/Features/feature_train_efficient_b3_center_loss_fp16.hdf5 --layer_names features --output_path /scratch/adhamija/4mohsen/Features/EVM_Models/DM/ --gpus 10 --tailsizes 33998 --cover_thresholds 0.8 --distance_multipliers 0.45 --run_tests --test_feature_files /scratch/adhamija/4mohsen/Features/feature_val_efficient_b3_center_loss_fp16.hdf5```
+```python -m torch.distributed.launch main.py --feature_files /scratch/adhamija/4mohsen/Features/feature_train_efficient_b3_center_loss_fp16.hdf5 --layer_names features --output_path /scratch/adhamija/4mohsen/Features/EVM_Models/DM/ --gpus 10 --tailsizes 33998 --cover_thresholds 0.8 --distance_multipliers 0.4 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 1.0 --distance_metric euclidean --cls_per_chunk 25 --run_tests --test_feature_files /scratch/adhamija/4mohsen/Features/feature_val_efficient_b3_center_loss_fp16.hdf5```
