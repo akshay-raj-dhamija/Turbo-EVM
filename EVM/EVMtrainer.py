@@ -115,11 +115,13 @@ def each_process_trainer(gpu, args, pos_classes_to_process, all_class_features_m
         positive_cls_feature = all_class_features_meta['features'][pos_batch_no][start:end,:]
 
         # 2000 is just a number selected based on various runs with Titan RTX for SAILON project
-        sorting_device = "cpu" if (positive_cls_feature.shape[0]>=1300 or max_tailsize>150000) else f"cuda:{gpu}"
+        sorting_device = "cpu" if (positive_cls_feature.shape[0]>=2300 or max_tailsize>150000) else f"cuda:{gpu}"
         positive_cls_feature = positive_cls_feature.to(sorting_device)
 
         negative_distances=[]
         for batch_no, neg_features in enumerate(all_class_features_meta['features']):
+            assert torch.any(torch.isnan(neg_features)) == False, f"Some Features are nan {torch.any(torch.isnan(neg_features))}"
+
             # distances is a tensor of size no_of_positive_samples X no_of_samples_in_current_batch
             distances = pairwisedistances.__dict__[args.distance_metric](positive_cls_feature,
                                                                          neg_features.to(sorting_device))
@@ -134,8 +136,9 @@ def each_process_trainer(gpu, args, pos_classes_to_process, all_class_features_m
                 # check if distances to self is zero
                 e = torch.eye(positive_distances.shape[0]).type(torch.BoolTensor)
                 assert torch.allclose(positive_distances[e].type(torch.FloatTensor), \
-                                      torch.zeros(positive_distances.shape[0]))==True, \
-                    "Distances of samples to themselves is not zero"
+                                      torch.zeros(positive_distances.shape[0]),atol=1e-06)==True, \
+                    f"Distances of samples to themselves is not zero {torch.min(positive_distances[e][positive_distances[e]!=0])}" \
+                    f"{torch.max(positive_distances[e][positive_distances[e]!=0])}"
             # Store bottom k distances from each batch to the cpu
             sortedTensor = torch.topk(distances,
                                       min(max_tailsize,distances.shape[1]),
