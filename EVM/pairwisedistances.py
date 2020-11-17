@@ -1,9 +1,18 @@
 import torch
 
-def cosine_distance(x1, x2_t, w2_t, eps=1e-8):
-    w1 = x1.norm(p=2, dim=1, keepdim=True)
-    distances = 1 - torch.mm(x1, x2_t) / (w1 * w2_t).clamp(min=eps)
-    # assert distances[distances<-eps].shape[0] == 0
-    # assert distances[distances>2+eps].shape[0] == 0
-    distances = distances.clamp(min = 0, max=2)
+def cosine(x, y, unit_vectors=False):
+    print(" WARNING: COSINE DISTANCE RESULTS HAVE NOT BEEN VERIFIED".center(90, '*'))
+    if not unit_vectors:
+        x = torch.nn.functional.normalize(x, dim=1)
+        y = torch.nn.functional.normalize(y, dim=1)
+    similarity = torch.einsum('nc,ck->nk', [x, y.T])
+    distances = 1-similarity
     return distances
+
+def euclidean(x, y):
+    distances = torch.cdist(x, y, p=2.0, compute_mode='use_mm_for_euclid_dist_if_necessary')
+    return distances
+
+__dict__ = {'cosine':cosine,
+            'euclidean':euclidean
+           }

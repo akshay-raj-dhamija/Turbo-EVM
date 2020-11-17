@@ -27,12 +27,14 @@ class weibull:
              --> 10000 distances for each weibull on 1 dim
         """
         self.sign = -1
-        max_tailsize_in_1_chunk = 100000
-        if tailSize <= max_tailsize_in_1_chunk:
+        # Hyper parameter based on 24GM Memory of Titan RTX
+        max_tensor_size = 1000 * 100000
+        actual_tensor_size = data.shape[0] * data.shape[1]
+        if actual_tensor_size <= max_tensor_size:
             self.splits = 1
             to_return = self._weibullFitting(data, tailSize, isSorted, gpu)
         else:
-            self.splits = tailSize//max_tailsize_in_1_chunk + 1
+            self.splits = actual_tensor_size//max_tensor_size + 1
             to_return = self._weibullFilltingInBatches(data, tailSize, isSorted, gpu)
         return to_return
 

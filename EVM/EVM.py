@@ -28,6 +28,8 @@ def command_line_options():
                         type=float, default=[0.7])
     parser.add_argument("--distance_multipliers", nargs="+", help="All EVM distance multipliers",
                         type=float, default=[0.55])
+    parser.add_argument('--distance_metric', default='cosine', type=str,
+                        help='distance metric to use', choices=['cosine','euclidean'])
     parser.add_argument("--output_path", help="output directory path", default="", required=True)
     parser.add_argument("-g", "--gpus", nargs="+", default=[1], type=int, help="number of gpus per node")
     parser.add_argument("--local_rank", default=0, type=int)

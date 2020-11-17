@@ -77,16 +77,16 @@ def saver_process_execution(global_rank, args, combination_name, combination_dic
                      rpc_backend_options=rpc.ProcessGroupRpcBackendOptions(num_send_recv_threads=args.world_size*3,
                                                                            rpc_timeout=0)
                      )
-        print(f"Started RPC for saver process ID {global_rank} for combination {combination_name}")
+        print(f"Started RPC for saver process ID {global_rank} for combination {combination_name}\n")
 
     model_saver.initializer(args, combination_dict, display_progress)
-    print(f"Initialized Model Saver in the Saver process ID {global_rank} ... going to wait now")
+    print(f"Initialized Model Saver in the Saver process ID {global_rank} ... going to wait now\n")
     while True:
         if model_saver.cls_counter()>=args.total_no_of_classes:
             break
-    print(f"Closing Model file in the saver process ID {global_rank}")
+    print(f"Closing Model file in the saver process ID {global_rank}\n")
     model_saver.close(display_progress)
-    print(f"Shutting down RPC for saver process ID {global_rank}")
+    print(f"Shutting down RPC for saver process ID {global_rank}\n")
     rpc.shutdown()
     return
 
@@ -100,7 +100,7 @@ def each_process_trainer(gpu, args, pos_classes_to_process, all_class_features_m
                      rpc_backend_options=rpc.ProcessGroupRpcBackendOptions(num_send_recv_threads=args.world_size*3,
                                                                            rpc_timeout=0)
                      )
-        print(f"Started RPC for internal process ID {global_rank}")
+        print(f"Started RPC for internal process ID {global_rank}\n")
 
     torch.cuda.set_device(gpu)
 
@@ -112,18 +112,19 @@ def each_process_trainer(gpu, args, pos_classes_to_process, all_class_features_m
         while pos_cls_name not in all_class_features_meta['start_indxs'][pos_batch_no]:
             pos_batch_no+=1
         start, end = all_class_features_meta['start_indxs'][pos_batch_no][pos_cls_name]
-        positive_cls_feature = all_class_features_meta['features_t'][pos_batch_no][:,start:end]
-        positive_cls_feature = positive_cls_feature.t()
-        positive_cls_feature = positive_cls_feature.to(f"cuda:{gpu}")
+        positive_cls_feature = all_class_features_meta['features'][pos_batch_no][start:end,:]
+
+        # 2000 is just a number selected based on various runs with Titan RTX for SAILON project
+        sorting_device = "cpu" if (positive_cls_feature.shape[0]>=2300 or max_tailsize>150000) else f"cuda:{gpu}"
+        positive_cls_feature = positive_cls_feature.to(sorting_device)
 
         negative_distances=[]
-        for batch_no, neg_features in enumerate(all_class_features_meta['features_t']):
-            norm = all_class_features_meta['features_t_norm'][batch_no].to(f"cuda:{gpu}")
+        for batch_no, neg_features in enumerate(all_class_features_meta['features']):
+            assert torch.any(torch.isnan(neg_features)) == False, f"Some Features are nan {torch.any(torch.isnan(neg_features))}"
+
             # distances is a tensor of size no_of_positive_samples X no_of_samples_in_current_batch
-            distances = pairwisedistances.cosine_distance(positive_cls_feature,
-                                                          neg_features.to(f"cuda:{gpu}"),
-                                                          w2_t=norm)
-            del norm
+            distances = pairwisedistances.__dict__[args.distance_metric](positive_cls_feature,
+                                                                         neg_features.to(sorting_device))
             if pos_cls_name in all_class_features_meta['start_indxs'][batch_no]:
                 start, end = all_class_features_meta['start_indxs'][batch_no][pos_cls_name]
                 # store the positive distances and use only negatives for tail
@@ -135,8 +136,9 @@ def each_process_trainer(gpu, args, pos_classes_to_process, all_class_features_m
                 # check if distances to self is zero
                 e = torch.eye(positive_distances.shape[0]).type(torch.BoolTensor)
                 assert torch.allclose(positive_distances[e].type(torch.FloatTensor), \
-                                      torch.zeros(positive_distances.shape[0]))==True, \
-                    "Distances of samples to themselves is not zero"
+                                      torch.zeros(positive_distances.shape[0]),atol=1e-06)==True, \
+                    f"Distances of samples to themselves is not zero {torch.min(positive_distances[e][positive_distances[e]!=0])}" \
+                    f"{torch.max(positive_distances[e][positive_distances[e]!=0])}"
             # Store bottom k distances from each batch to the cpu
             sortedTensor = torch.topk(distances,
                                       min(max_tailsize,distances.shape[1]),
@@ -146,23 +148,33 @@ def each_process_trainer(gpu, args, pos_classes_to_process, all_class_features_m
             del distances
             negative_distances.append(sortedTensor.cpu())
 
-        # For all batches iterate batch by batch to find bottom k distances
-        # This is done because the gpu memory may not be able to accommodate all distances at once
-        # Also, if performed on cpu it may cause a bottle neck especially for machines
-        # with high number of gpus and relatively low number of cpus.
-        sortedTensor = negative_distances[0].to(f"cuda:{gpu}")
-        distance_batch = None
-        for n in negative_distances[1:]:
-            distance_batch = torch.cat([sortedTensor,n.to(f"cuda:{gpu}")], dim=1)
-            sortedTensor = torch.topk(distance_batch,
-                                      min(max_tailsize,distance_batch.shape[1]),
+
+        del neg_features
+        del positive_cls_feature
+        if sorting_device == "cpu":
+            sortedTensor = torch.cat(negative_distances, dim=1)
+            sortedTensor = torch.topk(sortedTensor,
+                                      min(max_tailsize, sortedTensor.shape[1]),
                                       dim=1,
                                       largest=False,
                                       sorted=True).values
-        del distance_batch
+        else:
+            # For all batches iterate batch by batch to find bottom k distances
+            # This is done because the gpu memory may not be able to accommodate all distances at once
+            # Also, if performed on cpu it may cause a bottle neck especially for machines
+            # with high number of gpus and relatively low number of cpus.
+            sortedTensor = negative_distances[0].to(sorting_device)
+            distance_batch = None
+            for n in negative_distances[1:]:
+                distance_batch = torch.cat([sortedTensor, n.to(sorting_device)], dim=1)
+                # print(f"positive_cls_feature {positive_cls_feature.shape} sortedTensor {sortedTensor.shape} n {n.shape} distance_batch {distance_batch.shape}")
+                sortedTensor = torch.topk(distance_batch,
+                                          min(max_tailsize,distance_batch.shape[1]),
+                                          dim=1,
+                                          largest=False,
+                                          sorted=True).values
+            del distance_batch
         del negative_distances
-        del neg_features
-        del positive_cls_feature
 
         # Perform actual EVM training
         for combination in args.evm_param_combinations:
